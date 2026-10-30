@@ -1,0 +1,229 @@
+package frc.robot.subsystems;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.function.Supplier;
+
+import org.json.simple.parser.ParseException;
+
+import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.config.PIDConstants;
+import com.pathplanner.lib.config.RobotConfig;
+import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.driverstation.MatchState;
+import org.wpilib.driverstation.RobotState;
+import org.wpilib.driverstation.Alliance;
+import org.wpilib.driverstation.MatchType;
+import org.wpilib.driverstation.DriverStationErrors;
+import org.wpilib.system.Filesystem;
+import org.wpilib.smartdashboard.Field2d;
+import org.wpilib.command2.Command;
+import org.wpilib.command2.SubsystemBase;
+import frc.robot.Constants;
+import swervelib.commands2.SwerveParser;
+import yams.commands2.swerve.SwerveDrive;
+import yams.commands2.config.SwerveDriveConfig;
+import yams.core.telemetry.SwerveDriveTelemetryConfig;
+import yams.core.telemetry.enums.TelemetryVerbosity;
+
+
+/**
+ * SwerveSubsystem manages the 4-wheel independent drive modules.
+ * In FRC, a "Subsystem" is like a body part of the robot. This one handles movement.
+ * It uses YAGSL (Yet Another Generic Swerve Library) to handle the complex 
+ * trigonometry required to make 4 wheels move together as one drivetrain.
+ */
+public class SwerveSubsystem extends SubsystemBase {
+  
+  // The 'swerveDrive' object is the brain of the drivetrain provided by YAGSL.
+  private final SwerveDrive swerveDrive;
+  
+  // Field2d is a utility that lets us see a virtual robot icon on our 
+  // laptop dashboard (Glass/Shuffleboard) to verify our position on the field.
+  private final Field2d m_field = new Field2d();
+  
+  // A safety check to ensure PathPlanner (auto-navigation) is ready to use.
+  private boolean pathPlannerConfigured = false;
+
+  // At power-on the gyro reads 0 whichever way the robot faces. Same convention as the Y button:
+  // the robot starts facing AWAY from its own driver station, which is field heading 0 on Blue
+  // and 180 on Red. Until the alliance is known (or Y / an auto sets the pose), the heading is
+  // 180 deg wrong on Red, which flips field-oriented driving.
+  private boolean headingSeeded = false;
+
+  /**
+   * CONSTRUCTOR: This runs once when the robot code starts up.
+   */
+  public SwerveSubsystem() {
+    // 1. Build your YAMS configuration profile
+    var cfg = new SwerveDriveConfig()
+        .withStartingPose(new Pose2d(3, 3, new Rotation2d()))
+        .withSubsystem(this) // Registers the subsystem framework directly to YAMS
+        .withTelemetry("Swerve", new SwerveDriveTelemetryConfig(TelemetryVerbosity.HIGH));
+
+    // 2. Parse the JSON config directory statically into YAGSL memory
+    SwerveParser.parse(new File(Filesystem.getDeployDirectory(), "swerve/base"));
+
+    // 3. Statically instantiate your YAMS-powered SwerveDrive instance 
+    this.swerveDrive = SwerveParser.createSwerveDrive(cfg);
+    
+    //_______________________________________________OLD____________________
+    // YAGSL looks for JSON configuration files in the 'deploy/swerve' folder.
+    // These files define motor IDs, gear ratios, and wheel placement.
+    // File directory = new File(Filesystem.getDeployDirectory(), "swerve");
+    // try {
+    //   // Initialize the drivetrain using the files in that directory and the max speed from Constants.
+    //   swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed);
+    // } catch (IOException e) {
+    //   // If the config files are missing or broken, the code crashes here so we know immediately.
+    //   throw new RuntimeException(e);
+    // }
+
+    // // Pushes the virtual field map to the dashboard so drivers can see robot positioning.
+    // SmartDashboard.putData("Field", m_field);
+
+    // // Initialize the autonomous navigation settings.
+    // setupPathPlanner();
+  }
+
+  /**
+   * Configures PathPlanner, which is the software used to follow pre-drawn paths.
+   */
+  public final void setupPathPlanner() {
+    try {
+      // RobotConfig reads the physical robot data (mass, MOI, etc.) from GUI settings.
+      RobotConfig config = RobotConfig.fromGUISettings();
+
+      // Configure the AutoBuilder: This maps PathPlanner's "brain" to our robot's "muscles."
+      AutoBuilder.configure(
+          this::getPose,                // Function to get current robot position (X, Y, Rotation)
+          swerveDrive::resetOdometry,   // Function to 'teleport' the robot's internal map position
+          swerveDrive::getRobotVelocity,// Function to see how fast the robot is currently moving
+          (speeds, feedforwards) -> swerveDrive.drive(speeds), // Function to physically move the motors
+          new PPHolonomicDriveController(
+              // PIDConstants: These control how hard the robot fights to stay on a path.
+              // If the robot wobbles, these numbers are too high. If it's lazy, they are too low.
+              // Starting point (PathPlanner/YAGSL example values). If autos oscillate, lower them;
+              // if the robot drifts off the path, raise them.
+              new PIDConstants(5.0, 0.0, 0.0), // Translation (Moving X and Y): m/s per meter of error
+              new PIDConstants(5.0, 0.0, 0.0)  // Rotation (Turning): rad/s per radian of error
+          ),
+          config,
+() -> {
+    // 1. Check if we are on Red Alliance
+    var alliance = MatchState.getAlliance();
+    boolean isRed = alliance.isPresent() && alliance.get() == Alliance.RED;
+    
+    // 2. Read a True/False toggle from your Dashboard for starting side
+    // (True = Right side of alliance wall, False = Left side)
+    boolean isStartingRight = SmartDashboard.getBoolean("Start on Right Side?", false);
+    
+    // 3. XOR Logic: If BOTH are true or BOTH are false, don't flip. 
+    // If only ONE is true, PathPlanner flips the path upside down!
+    return isRed ^ isStartingRight; 
+},
+this);
+
+      pathPlannerConfigured = true;
+    } catch (IOException | ParseException e) {
+      // If PathPlanner fails, we report an error to the Driver Station log.
+      pathPlannerConfigured = false;
+      DriverStationErrors.reportError("PathPlanner Config Failed: " + e.getMessage(), e.getStackTrace());
+    }
+  }
+
+  /**
+   * Drive command for the joysticks.
+   * "Field Oriented" means pushing the stick forward always moves the robot away from the driver,
+   * no matter which way the robot's front is pointing.
+   */
+  public Command driveFieldOriented(Supplier<ChassisVelocities> velocity) {
+    return run(() -> swerveDrive.driveFieldOriented(velocity.get()));
+  } 
+
+  /**
+   * Resets the Gyro (Compass). Use this if the robot's "forward" gets messed up.
+   */
+  public Command zeroGyroCommand() {
+   return runOnce(() -> {
+      headingSeeded = true;
+      if(MatchState.getAlliance().get() == Alliance.RED)
+      {
+        swerveDrive.zeroGyro();
+        swerveDrive.resetOdometry(new Pose2d(swerveDrive.getPose().getX(), swerveDrive.getPose().getY(), Rotation2d.fromDegrees(180)));
+        //swerveDrive.zeroGryoWithAlliance();
+      } else {
+         swerveDrive.zeroGyro();
+
+       }
+     });
+   // return runOnce(() -> swerveDrive.setGyro(MatchState.getAlliance().get() == Alliance.RED ? new Rotation3d(Rotation2d.k180deg).minus(new Rotation3d(swerveDrive.getPose().getRotation())) : Rotation3d.kZero));
+  }
+
+  /**
+   * Locks the wheels in an 'X' pattern.
+   * This makes it very difficult for other robots to push us.
+   */
+  public Command lockPoseCommand() {
+    return run(() -> swerveDrive.lockPose());
+  }
+
+  /**
+   * Returns where the robot is on the field (X, Y in meters, and Rotation).
+   */
+  public Pose2d getPose() {
+    return swerveDrive.getPose();
+  }
+
+  /**
+   * Accessor method to get the raw SwerveDrive object if needed.
+   */
+  public SwerveDrive getSwerveDrive() {
+    return swerveDrive;
+  }
+
+  /** The dashboard field ("Field"), so other code can draw extra objects on it. */
+  public Field2d getField() {
+    return m_field;
+  }
+
+  /**
+   * Raw yaw straight from the Pigeon IMU (NOT fused odometry), as a Rotation2d,
+   * CCW-positive. The turret-aim command differentiates this between loops to learn
+   * how fast the chassis is spinning, so it can counter-rotate and stay field-locked.
+   */
+  public Rotation2d getGyroYaw() {
+    return swerveDrive.getGyroRotation3d().toRotation2d();
+  }
+
+  /**
+   * This runs every 20ms (50 times per second).
+   * It is the "Heartbeat" of the subsystem.
+   */
+  @Override
+  public void periodic() {
+    // Once, while disabled, as soon as the Driver Station reports the alliance: flip the
+    // heading on Red (see headingSeeded). Keeps any turning done since power-on.
+    if (!headingSeeded && RobotState.isDisabled()) {
+      var alliance = MatchState.getAlliance();
+      if (alliance.isPresent()) {
+        if (alliance.get() == Alliance.RED) {
+          Pose2d pose = swerveDrive.getPose();
+          swerveDrive.resetOdometry(new Pose2d(pose.getTranslation(), pose.getRotation().plus(Rotation2d.k180deg)));
+        }
+        headingSeeded = true;
+      }
+    }
+
+    // Vision corrections are now applied by VisionSubsystem, which feeds AprilTag
+    // pose measurements straight into this drive's pose estimator.
+    swerveDrive.updateOdometry(); // Calculate new position based on motor rotations
+
+    // Update the virtual robot icon on the dashboard so we can debug movement.
+    m_field.setRobotPose(swerveDrive.getPose());
+  }
+}
