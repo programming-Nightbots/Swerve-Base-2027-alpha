@@ -1,27 +1,29 @@
 {
-  "location": {
-    "front": -11,
-    "left": -11
-  },
-  "absoluteEncoderOffset": 257.6952,
+  "$schema": "https://config.yagsl.com/schemas/module.json",
   "drive": {
     "type": "sparkmax_neo",
     "id": 32,
-    "canbus": null
+    "canbus": ""
   },
   "angle": {
     "type": "sparkmax_neo",
     "id": 31,
-    "canbus": null
-  },
-  "encoder": {
-    "type": "cancoder",
-    "id": 3,
-    "canbus": null
+    "canbus": ""
   },
   "inverted": {
     "drive": true,
     "angle": true
   },
-  "absoluteEncoderInverted": false
+  "absoluteEncoder": {
+    "type": "cancoder_can",
+    "id": 3,
+    "channel": 0,
+    "canbus": ""
+  },
+  "absoluteEncoderOffset": 257.6952,
+  "absoluteEncoderInverted": false,
+  "location": {
+    "front": -11,
+    "left": -11
+  }
 }

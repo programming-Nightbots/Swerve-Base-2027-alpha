@@ -1,15 +1,15 @@
-package frc.robot.subsystems;
+package frc.robot.mechanisms;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.function.Supplier;
+// import java.io.IOException;
+// import java.util.function.Supplier;
 
-import org.json.simple.parser.ParseException;
+// import org.json.simple.parser.ParseException;
 
-import com.pathplanner.lib.auto.AutoBuilder;
-import com.pathplanner.lib.config.PIDConstants;
-import com.pathplanner.lib.config.RobotConfig;
-import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+// import com.pathplanner.lib.auto.AutoBuilder; UN COMMENT PATH PLANNER STUFF WHEN PATH PLANNER BEING SETUP
+// import com.pathplanner.lib.config.PIDConstants;
+// import com.pathplanner.lib.config.RobotConfig;
+// import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 
 import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.math.geometry.Rotation2d;
@@ -17,16 +17,16 @@ import org.wpilib.math.kinematics.ChassisVelocities;
 import org.wpilib.driverstation.MatchState;
 import org.wpilib.driverstation.RobotState;
 import org.wpilib.driverstation.Alliance;
-import org.wpilib.driverstation.MatchType;
-import org.wpilib.driverstation.DriverStationErrors;
+// import org.wpilib.driverstation.MatchType;
+// import org.wpilib.driverstation.DriverStationErrors;
 import org.wpilib.system.Filesystem;
 import org.wpilib.smartdashboard.Field2d;
-import org.wpilib.command2.Command;
-import org.wpilib.command2.SubsystemBase;
-import frc.robot.Constants;
-import swervelib.commands2.SwerveParser;
-import yams.commands2.swerve.SwerveDrive;
-import yams.commands2.config.SwerveDriveConfig;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+// import frc.robot.Constants;
+import swervelib.commands3.SwerveParser;
+import yams.commands3.swerve.*;
+import yams.commands3.config.SwerveDriveConfig;
 import yams.core.telemetry.SwerveDriveTelemetryConfig;
 import yams.core.telemetry.enums.TelemetryVerbosity;
 
@@ -37,7 +37,7 @@ import yams.core.telemetry.enums.TelemetryVerbosity;
  * It uses YAGSL (Yet Another Generic Swerve Library) to handle the complex 
  * trigonometry required to make 4 wheels move together as one drivetrain.
  */
-public class SwerveSubsystem extends SubsystemBase {
+public class SwerveMechanism implements Mechanism {
   
   // The 'swerveDrive' object is the brain of the drivetrain provided by YAGSL.
   private final SwerveDrive swerveDrive;
@@ -58,15 +58,15 @@ public class SwerveSubsystem extends SubsystemBase {
   /**
    * CONSTRUCTOR: This runs once when the robot code starts up.
    */
-  public SwerveSubsystem() {
+  public SwerveMechanism() {
     // 1. Build your YAMS configuration profile
     var cfg = new SwerveDriveConfig()
         .withStartingPose(new Pose2d(3, 3, new Rotation2d()))
-        .withSubsystem(this) // Registers the subsystem framework directly to YAMS
+        .withMechanism(this) // Registers the subsystem framework directly to YAMS
         .withTelemetry("Swerve", new SwerveDriveTelemetryConfig(TelemetryVerbosity.HIGH));
 
     // 2. Parse the JSON config directory statically into YAGSL memory
-    SwerveParser.parse(new File(Filesystem.getDeployDirectory(), "swerve/base"));
+    SwerveParser.parse(new File(Filesystem.getDeployDirectory(), "swerve"));
 
     // 3. Statically instantiate your YAMS-powered SwerveDrive instance 
     this.swerveDrive = SwerveParser.createSwerveDrive(cfg);
@@ -90,77 +90,65 @@ public class SwerveSubsystem extends SubsystemBase {
     // setupPathPlanner();
   }
 
-  /**
-   * Configures PathPlanner, which is the software used to follow pre-drawn paths.
-   */
-  public final void setupPathPlanner() {
-    try {
-      // RobotConfig reads the physical robot data (mass, MOI, etc.) from GUI settings.
-      RobotConfig config = RobotConfig.fromGUISettings();
+//   /**
+//    * Configures PathPlanner, which is the software used to follow pre-drawn paths.
+//    */
+//   public final void setupPathPlanner() {
+//     try {
+//       // RobotConfig reads the physical robot data (mass, MOI, etc.) from GUI settings.
+//       RobotConfig config = RobotConfig.fromGUISettings();
 
-      // Configure the AutoBuilder: This maps PathPlanner's "brain" to our robot's "muscles."
-      AutoBuilder.configure(
-          this::getPose,                // Function to get current robot position (X, Y, Rotation)
-          swerveDrive::resetOdometry,   // Function to 'teleport' the robot's internal map position
-          swerveDrive::getRobotVelocity,// Function to see how fast the robot is currently moving
-          (speeds, feedforwards) -> swerveDrive.drive(speeds), // Function to physically move the motors
-          new PPHolonomicDriveController(
-              // PIDConstants: These control how hard the robot fights to stay on a path.
-              // If the robot wobbles, these numbers are too high. If it's lazy, they are too low.
-              // Starting point (PathPlanner/YAGSL example values). If autos oscillate, lower them;
-              // if the robot drifts off the path, raise them.
-              new PIDConstants(5.0, 0.0, 0.0), // Translation (Moving X and Y): m/s per meter of error
-              new PIDConstants(5.0, 0.0, 0.0)  // Rotation (Turning): rad/s per radian of error
-          ),
-          config,
-() -> {
-    // 1. Check if we are on Red Alliance
-    var alliance = MatchState.getAlliance();
-    boolean isRed = alliance.isPresent() && alliance.get() == Alliance.RED;
+//       // Configure the AutoBuilder: This maps PathPlanner's "brain" to our robot's "muscles."
+//       AutoBuilder.configure(
+//           this::getPose,                // Function to get current robot position (X, Y, Rotation)
+//           swerveDrive::resetOdometry,   // Function to 'teleport' the robot's internal map position
+//           swerveDrive::getRobotVelocity,// Function to see how fast the robot is currently moving
+//           (speeds, feedforwards) -> swerveDrive.drive(speeds), // Function to physically move the motors
+//           new PPHolonomicDriveController(
+//               // PIDConstants: These control how hard the robot fights to stay on a path.
+//               // If the robot wobbles, these numbers are too high. If it's lazy, they are too low.
+//               // Starting point (PathPlanner/YAGSL example values). If autos oscillate, lower them;
+//               // if the robot drifts off the path, raise them.
+//               new PIDConstants(5.0, 0.0, 0.0), // Translation (Moving X and Y): m/s per meter of error
+//               new PIDConstants(5.0, 0.0, 0.0)  // Rotation (Turning): rad/s per radian of error
+//           ),
+//           config,
+// () -> {
+//     // 1. Check if we are on Red Alliance
+//     var alliance = MatchState.getAlliance();
+//     boolean isRed = alliance.isPresent() && alliance.get() == Alliance.RED;
     
-    // 2. Read a True/False toggle from your Dashboard for starting side
-    // (True = Right side of alliance wall, False = Left side)
-    boolean isStartingRight = SmartDashboard.getBoolean("Start on Right Side?", false);
-    
-    // 3. XOR Logic: If BOTH are true or BOTH are false, don't flip. 
-    // If only ONE is true, PathPlanner flips the path upside down!
-    return isRed ^ isStartingRight; 
-},
-this);
+//     // 2. Read a True/False toggle from your Dashboard for starting side
+//     // (True = Right side of alliance wall, False = Left side)
+//     // 3. XOR Logic: If BOTH are true or BOTH are false, don't flip. 
+//     // If only ONE is true, PathPlanner flips the path upside down!
+//     return isRed ^ false; // Replace 'false' with your dashboard toggle if you have one !!!
+// },
+// this);
 
-      pathPlannerConfigured = true;
-    } catch (IOException | ParseException e) {
-      // If PathPlanner fails, we report an error to the Driver Station log.
-      pathPlannerConfigured = false;
-      DriverStationErrors.reportError("PathPlanner Config Failed: " + e.getMessage(), e.getStackTrace());
-    }
-  }
+//       pathPlannerConfigured = true;
+//     } catch (IOException | ParseException e) {
+//       // If PathPlanner fails, we report an error to the Driver Station log.
+//       pathPlannerConfigured = false;
+//       DriverStationErrors.reportError("PathPlanner Config Failed: " + e.getMessage(), e.getStackTrace());
+//     }
+//   }
 
   /**
    * Drive command for the joysticks.
    * "Field Oriented" means pushing the stick forward always moves the robot away from the driver,
    * no matter which way the robot's front is pointing.
    */
-  public Command driveFieldOriented(Supplier<ChassisVelocities> velocity) {
-    return run(() -> swerveDrive.driveFieldOriented(velocity.get()));
-  } 
+  public void drive(ChassisVelocities velocity)
+  {
+    swerveDrive.setFieldRelativeChassisSpeeds(velocity);
+  }
 
   /**
-   * Resets the Gyro (Compass). Use this if the robot's "forward" gets messed up.
+ * Resets the Gyro (Compass). NOT ALLIANCE RELATIVE ONLY FOR IF MESSED UP MID MATCH FACE AWAY FROM RED ALLIANCE WALL for it.
    */
-  public Command zeroGyroCommand() {
-   return runOnce(() -> {
-      headingSeeded = true;
-      if(MatchState.getAlliance().get() == Alliance.RED)
-      {
-        swerveDrive.zeroGyro();
-        swerveDrive.resetOdometry(new Pose2d(swerveDrive.getPose().getX(), swerveDrive.getPose().getY(), Rotation2d.fromDegrees(180)));
-        //swerveDrive.zeroGryoWithAlliance();
-      } else {
-         swerveDrive.zeroGyro();
-
-       }
-     });
+  public Command zeroGyro() {
+   return run(coroutine -> swerveDrive.zeroGyro()).named("Zero Gyro");
    // return runOnce(() -> swerveDrive.setGyro(MatchState.getAlliance().get() == Alliance.RED ? new Rotation3d(Rotation2d.k180deg).minus(new Rotation3d(swerveDrive.getPose().getRotation())) : Rotation3d.kZero));
   }
 
@@ -168,9 +156,10 @@ this);
    * Locks the wheels in an 'X' pattern.
    * This makes it very difficult for other robots to push us.
    */
-  public Command lockPoseCommand() {
-    return run(() -> swerveDrive.lockPose());
-  }
+
+  // public Command lockPoseCommand() {
+  //   return run(() -> swerveDrive.lockPose());
+  // }
 
   /**
    * Returns where the robot is on the field (X, Y in meters, and Rotation).
@@ -204,7 +193,6 @@ this);
    * This runs every 20ms (50 times per second).
    * It is the "Heartbeat" of the subsystem.
    */
-  @Override
   public void periodic() {
     // Once, while disabled, as soon as the Driver Station reports the alliance: flip the
     // heading on Red (see headingSeeded). Keeps any turning done since power-on.
@@ -221,9 +209,15 @@ this);
 
     // Vision corrections are now applied by VisionSubsystem, which feeds AprilTag
     // pose measurements straight into this drive's pose estimator.
-    swerveDrive.updateOdometry(); // Calculate new position based on motor rotations
+    swerveDrive.updateTelemetry(); // Calculate new position based on motor rotations
 
     // Update the virtual robot icon on the dashboard so we can debug movement.
     m_field.setRobotPose(swerveDrive.getPose());
+  }
+
+  /** Call every loop in simulation. */
+  public void simulationPeriodic()
+  {
+    swerveDrive.simIterate();
   }
 }

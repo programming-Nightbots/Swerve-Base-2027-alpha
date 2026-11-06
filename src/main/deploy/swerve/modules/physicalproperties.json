@@ -1,24 +1,12 @@
 {
-  "optimalVoltage": 12,
-  "robotMass": 110,
-  "wheelGripCoefficientOfFriction": 1.0,
-  "currentLimit": {
-    "drive": 35,
-    "angle": 35
-  },
-  "conversionFactors": {
-    "angle": {
-      "gearRatio": 21.42857,
-      "factor": 16.8
-    },
+  "$schema": "https://config.yagsl.com/schemas/physicalproperties.json",
+  "gearing": {
     "drive": {
-      "diameter": 4,
       "gearRatio": 6.75,
-      "factor": 0.047286
+      "diameter": 4
+    },
+    "angle": {
+      "gearRatio": 21.42857
     }
-  },
-  "rampRate": {
-    "drive": 0.25,
-    "angle": 0.25
   }
 }
