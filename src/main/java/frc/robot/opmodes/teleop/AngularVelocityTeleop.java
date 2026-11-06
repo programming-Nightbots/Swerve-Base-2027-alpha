@@ -35,7 +35,11 @@ public class AngularVelocityTeleop implements OpMode
 
     RobotModeTriggers.teleop().whileTrue(driveCommand);
 
-    // Zero the gyro with Menu + View. Use this if the field-relative heading drifts.
-    driverXbox.y().and(driverXbox.view()).onTrue(robot.swerve.zeroGyro());
+    // Resets gyro using no requirments so it wont crash, only needed irl sim cant use
+    driverXbox.y().onTrue(
+      Command.noRequirements(coroutine -> {
+          robot.swerve.getSwerveDrive().zeroGyro();
+        }).named("Zero Gyro")
+);
   }
 }

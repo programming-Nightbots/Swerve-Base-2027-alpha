@@ -148,8 +148,12 @@ public class SwerveMechanism implements Mechanism {
  * Resets the Gyro (Compass). NOT ALLIANCE RELATIVE ONLY FOR IF MESSED UP MID MATCH FACE AWAY FROM RED ALLIANCE WALL for it.
    */
   public Command zeroGyro() {
-   return run(coroutine -> swerveDrive.zeroGyro()).named("Zero Gyro");
-   // return runOnce(() -> swerveDrive.setGyro(MatchState.getAlliance().get() == Alliance.RED ? new Rotation3d(Rotation2d.k180deg).minus(new Rotation3d(swerveDrive.getPose().getRotation())) : Rotation3d.kZero));
+    return Command.requiring(this)
+        .executing(coroutine -> {
+            swerveDrive.zeroGyro();
+            // This runs once and exits cleanly without a loop or yield
+        })
+        .named("Zero Gyro Fixed");
   }
 
   /**
