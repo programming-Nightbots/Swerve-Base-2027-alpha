@@ -156,6 +156,15 @@ public class SwerveMechanism implements Mechanism {
         .named("Zero Gyro Fixed");
   }
 
+  public Command lockPose() {
+     return runRepeatedly( () ->
+      {
+        swerveDrive.lockPose();
+        System.out.println("Lock Pose Running");
+      }
+    ).named("Lock Pose");
+  }
+
   /**
    * Locks the wheels in an 'X' pattern.
    * This makes it very difficult for other robots to push us.

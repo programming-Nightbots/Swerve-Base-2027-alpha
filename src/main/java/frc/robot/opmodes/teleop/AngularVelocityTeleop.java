@@ -33,13 +33,7 @@ public class AngularVelocityTeleop implements OpMode
       }
     }).named("Drive Angular Velocity");
 
-    RobotModeTriggers.teleop().whileTrue(driveCommand);
-
-    // Resets gyro using no requirments so it wont crash, only needed irl sim cant use
-    driverXbox.y().onTrue(
-      Command.noRequirements(coroutine -> {
-          robot.swerve.getSwerveDrive().zeroGyro();
-        }).named("Zero Gyro")
-);
+    robot.swerve.setDefaultCommand(driveCommand);
+    DriverButtons.bind(robot, driverXbox);
   }
 }
