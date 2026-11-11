@@ -1,17 +1,17 @@
 package frc.robot.mechanisms;
 
 import java.io.File;
-// import java.io.IOException;
-// import java.util.function.Supplier;
+import java.io.IOException;
+import java.util.function.Supplier;
 
 import org.wpilib.math.controller.PIDController;
 
-// import org.json.simple.parser.ParseException;
+import org.json.simple.parser.ParseException;
 
-// import com.pathplanner.lib.auto.AutoBuilder; UN COMMENT PATH PLANNER STUFF WHEN PATH PLANNER BEING SETUP
-// import com.pathplanner.lib.config.PIDConstants;
-// import com.pathplanner.lib.config.RobotConfig;
-// import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+import com.pathplanner.lib.command3.AutoBuilder;
+import com.pathplanner.lib.config.PIDConstants;
+import com.pathplanner.lib.config.RobotConfig;
+import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 
 import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.math.geometry.Rotation2d;
@@ -19,6 +19,7 @@ import org.wpilib.math.kinematics.ChassisVelocities;
 import org.wpilib.driverstation.MatchState;
 import org.wpilib.driverstation.RobotState;
 import org.wpilib.driverstation.Alliance;
+import org.wpilib.driverstation.DriverStationErrors;
 // import org.wpilib.driverstation.MatchType;
 // import org.wpilib.driverstation.DriverStationErrors;
 import org.wpilib.system.Filesystem;
@@ -36,9 +37,9 @@ import yams.core.telemetry.enums.TelemetryVerbosity;
 
 import static frc.robot.Constants.SwerveConstants.*;
 /**
- * SwerveSubsystem manages the 4-wheel independent drive modules.
- * In FRC, a "Subsystem" is like a body part of the robot. This one handles movement.
- * It uses YAGSL (Yet Another Generic Swerve Library) to handle the complex 
+ * SwerveMechanism manages the 4-wheel independent drive modules.
+ * In FRC, a "Subsystem"/Mechanism is like a body part of the robot. This one handles movement.
+ * It uses YAGSL (Yet Another Generic Swerve Library) ands YAMS (Yet Another Mechanism System) to handle the complex 
  * trigonometry required to make 4 wheels move together as one drivetrain.
  */
 public class SwerveMechanism implements Mechanism {
@@ -80,68 +81,54 @@ public class SwerveMechanism implements Mechanism {
     // 3. Statically instantiate your YAMS-powered SwerveDrive instance 
     this.swerveDrive = SwerveParser.createSwerveDrive(cfg);
     
-    //_______________________________________________OLD____________________
-    // YAGSL looks for JSON configuration files in the 'deploy/swerve' folder.
-    // These files define motor IDs, gear ratios, and wheel placement.
-    // File directory = new File(Filesystem.getDeployDirectory(), "swerve");
-    // try {
-    //   // Initialize the drivetrain using the files in that directory and the max speed from Constants.
-    //   swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.maxSpeed);
-    // } catch (IOException e) {
-    //   // If the config files are missing or broken, the code crashes here so we know immediately.
-    //   throw new RuntimeException(e);
-    // }
-
-    // // Pushes the virtual field map to the dashboard so drivers can see robot positioning.
-    // SmartDashboard.putData("Field", m_field);
 
     // // Initialize the autonomous navigation settings.
-    // setupPathPlanner();
+    setupPathPlanner();
   }
 
-//   /**
-//    * Configures PathPlanner, which is the software used to follow pre-drawn paths.
-//    */
-//   public final void setupPathPlanner() {
-//     try {
-//       // RobotConfig reads the physical robot data (mass, MOI, etc.) from GUI settings.
-//       RobotConfig config = RobotConfig.fromGUISettings();
+  /**
+   * Configures PathPlanner, which is the software used to follow pre-drawn paths.
+   */
+  public final void setupPathPlanner() {
+    try {
+      // RobotConfig reads the physical robot data (mass, MOI, etc.) from GUI settings.
+      RobotConfig config = RobotConfig.fromGUISettings();
 
-//       // Configure the AutoBuilder: This maps PathPlanner's "brain" to our robot's "muscles."
-//       AutoBuilder.configure(
-//           this::getPose,                // Function to get current robot position (X, Y, Rotation)
-//           swerveDrive::resetOdometry,   // Function to 'teleport' the robot's internal map position
-//           swerveDrive::getRobotVelocity,// Function to see how fast the robot is currently moving
-//           (speeds, feedforwards) -> swerveDrive.drive(speeds), // Function to physically move the motors
-//           new PPHolonomicDriveController(
-//               // PIDConstants: These control how hard the robot fights to stay on a path.
-//               // If the robot wobbles, these numbers are too high. If it's lazy, they are too low.
-//               // Starting point (PathPlanner/YAGSL example values). If autos oscillate, lower them;
-//               // if the robot drifts off the path, raise them.
-//               new PIDConstants(5.0, 0.0, 0.0), // Translation (Moving X and Y): m/s per meter of error
-//               new PIDConstants(5.0, 0.0, 0.0)  // Rotation (Turning): rad/s per radian of error
-//           ),
-//           config,
-// () -> {
-//     // 1. Check if we are on Red Alliance
-//     var alliance = MatchState.getAlliance();
-//     boolean isRed = alliance.isPresent() && alliance.get() == Alliance.RED;
+      // Configure the AutoBuilder: This maps PathPlanner's "brain" to our robot's "muscles."
+      AutoBuilder.configure(
+          this::getPose,                // Function to get current robot position (X, Y, Rotation)
+          swerveDrive::resetOdometry,   // Function to 'teleport' the robot's internal map position
+          swerveDrive::getRobotRelativeSpeed,// Function to see how fast the robot is currently moving
+          (speeds, feedforwards) -> swerveDrive.setRobotRelativeChassisSpeeds(speeds), // Function to physically move the motors
+          new PPHolonomicDriveController(
+              // PIDConstants: These control how hard the robot fights to stay on a path.
+              // If the robot wobbles, these numbers are too high. If it's lazy, they are too low.
+              // Starting point (PathPlanner/YAGSL example values). If autos oscillate, lower them;
+              // if the robot drifts off the path, raise them.
+              new PIDConstants(5.0, 0.0, 0.0), // Translation (Moving X and Y): m/s per meter of error
+              new PIDConstants(5.0, 0.0, 0.0)  // Rotation (Turning): rad/s per radian of error
+          ),
+          config,
+() -> {
+    // 1. Check if we are on Red Alliance
+    var alliance = MatchState.getAlliance();
+    boolean isRed = alliance.isPresent() && alliance.get() == Alliance.RED;
     
-//     // 2. Read a True/False toggle from your Dashboard for starting side
-//     // (True = Right side of alliance wall, False = Left side)
-//     // 3. XOR Logic: If BOTH are true or BOTH are false, don't flip. 
-//     // If only ONE is true, PathPlanner flips the path upside down!
-//     return isRed ^ false; // Replace 'false' with your dashboard toggle if you have one !!!
-// },
-// this);
+    // 2. Read a True/False toggle from your Dashboard for starting side
+    // (True = Right side of alliance wall, False = Left side)
+    // 3. XOR Logic: If BOTH are true or BOTH are false, don't flip. 
+    // If only ONE is true, PathPlanner flips the path upside down!
+    return isRed ^ false; // Replace 'false' with your dashboard toggle if you have one !!!
+},
+this);
 
-//       pathPlannerConfigured = true;
-//     } catch (IOException | ParseException e) {
-//       // If PathPlanner fails, we report an error to the Driver Station log.
-//       pathPlannerConfigured = false;
-//       DriverStationErrors.reportError("PathPlanner Config Failed: " + e.getMessage(), e.getStackTrace());
-//     }
-//   }
+      pathPlannerConfigured = true;
+    } catch (IOException | ParseException e) {
+      // If PathPlanner fails, we report an error to the Driver Station log.
+      pathPlannerConfigured = false;
+      DriverStationErrors.reportError("PathPlanner Config Failed: " + e.getMessage(), e.getStackTrace());
+    }
+  }
 
   /**
    * Drive command for the joysticks.

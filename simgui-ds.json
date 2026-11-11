@@ -1,4 +1,5 @@
 {
+  "System Joysticks": {"window": {"enabled": false}},
   "keyboardJoysticks": [{
     "axisConfig": [{
       "decKey": 546,
