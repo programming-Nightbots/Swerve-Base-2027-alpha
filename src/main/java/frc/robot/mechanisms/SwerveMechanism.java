@@ -4,6 +4,8 @@ import java.io.File;
 // import java.io.IOException;
 // import java.util.function.Supplier;
 
+import org.wpilib.math.controller.PIDController;
+
 // import org.json.simple.parser.ParseException;
 
 // import com.pathplanner.lib.auto.AutoBuilder; UN COMMENT PATH PLANNER STUFF WHEN PATH PLANNER BEING SETUP
@@ -20,6 +22,8 @@ import org.wpilib.driverstation.Alliance;
 // import org.wpilib.driverstation.MatchType;
 // import org.wpilib.driverstation.DriverStationErrors;
 import org.wpilib.system.Filesystem;
+import org.wpilib.units.measure.Angle;
+import org.wpilib.units.measure.Distance;
 import org.wpilib.smartdashboard.Field2d;
 import org.wpilib.command3.Command;
 import org.wpilib.command3.Mechanism;
@@ -30,7 +34,7 @@ import yams.commands3.config.SwerveDriveConfig;
 import yams.core.telemetry.SwerveDriveTelemetryConfig;
 import yams.core.telemetry.enums.TelemetryVerbosity;
 
-
+import static frc.robot.Constants.SwerveConstants.*;
 /**
  * SwerveSubsystem manages the 4-wheel independent drive modules.
  * In FRC, a "Subsystem" is like a body part of the robot. This one handles movement.
@@ -63,6 +67,11 @@ public class SwerveMechanism implements Mechanism {
     var cfg = new SwerveDriveConfig()
         .withStartingPose(new Pose2d(3, 3, new Rotation2d()))
         .withMechanism(this) // Registers the subsystem framework directly to YAMS
+         .withTranslationController(new PIDController(4, 0, 0))
+        // YAMS stops any module asked for less than 0.1 m/s (its default module velocity deadband), so a weak
+        // rotation gain leaves a heading error it can never close. At kP = 3 that dead zone is under 4.5 degrees,
+        // inside driveToPose's 5 degree tolerance.
+        .withRotationController(new PIDController(3, 0, 0))
         .withTelemetry("Swerve", new SwerveDriveTelemetryConfig(TelemetryVerbosity.HIGH));
 
     // 2. Parse the JSON config directory statically into YAGSL memory
@@ -232,5 +241,18 @@ public class SwerveMechanism implements Mechanism {
   public void simulationPeriodic()
   {
     swerveDrive.simIterate();
+  }
+
+  /**
+   * Drive straight to the given pose with YAMS' {@link SwerveDrive#driveToPose(Pose2d, Distance, Angle)}, using the
+   * translation and rotation PID controllers from the {@link SwerveDriveConfig}. There is no path planning (Commands
+   * v3 has no PathPlanner support), so nothing steers it around obstacles.
+   *
+   * @param pose {@link Pose2d} to drive to. Field relative, blue-origin where 0deg is facing towards RED alliance.
+   * @return {@link Command} that drives to the pose, ending once it is within 2in and 5deg of it.
+   */
+  public Command driveToPose(Pose2d pose)
+  {
+    return swerveDrive.driveToPose(pose, POSE_TRANSLATION_TOLERANCE, POSE_ROTATION_TOLERANCE);
   }
 }
